@@ -1,0 +1,13 @@
+{
+  "name": "cc-tab-titles",
+  "version": "1.0.0",
+  "description": "Automatically sets terminal tab titles to an AI-generated summary of your Claude Code session",
+  "author": {
+    "name": "Samuel Reed",
+    "url": "https://github.com/STRML"
+  },
+  "homepage": "https://github.com/STRML/cc-tab-titles",
+  "repository": "https://github.com/STRML/cc-tab-titles",
+  "license": "MIT",
+  "keywords": ["tab", "title", "terminal", "ui", "ghostty", "iterm2"]
+}
