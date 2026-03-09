@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart hook: claim this TTY for the new session.
+# SessionStart hook: claim this tab for the new session.
 # Prevents a previous session's delayed title write from landing in the wrong tab.
 
 TITLE_DIR=/tmp/claude-tab-titles
@@ -14,11 +14,14 @@ except: print('')
 
 [ -z "$SESSION" ] && exit 0
 
-exec 3>/dev/tty 2>/dev/null || exit 0
-TTY_PATH=$(ls -la /dev/fd/3 2>/dev/null | awk '{print $NF}')
-TTY_KEY=$(basename "$TTY_PATH")
-exec 3>&-
+if [ -n "$CMUX_SURFACE_ID" ]; then
+  TAB_KEY="cmux-$CMUX_SURFACE_ID"
+else
+  exec 3>/dev/tty 2>/dev/null || exit 0
+  TAB_KEY=$(stat -f '%Lr' /dev/tty 2>/dev/null)
+  exec 3>&-
+fi
 
-[ -n "$TTY_KEY" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TTY_KEY"
+[ -n "$TAB_KEY" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
 exit 0

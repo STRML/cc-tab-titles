@@ -1,18 +1,18 @@
 #!/bin/bash
 # Stop hook: generate AI tab title summary, save it, and set the terminal tab title.
-# Runs claude -p in background so it doesn't block the response loop.
 
 TITLE_DIR=/tmp/claude-tab-titles
 mkdir -p "$TITLE_DIR"
 
-# Open /dev/tty as fd 3 BEFORE backgrounding.
-# After disown, /dev/tty becomes inaccessible, but an already-open fd survives.
-exec 3>/dev/tty 2>/dev/null || exit 0
-
-# Get the real TTY device path so the background process can verify ownership
-# (ls -la /dev/fd/3 resolves the actual pty device, e.g. /dev/ttys001)
-TTY_PATH=$(ls -la /dev/fd/3 2>/dev/null | awk '{print $NF}')
-TTY_KEY=$(basename "$TTY_PATH")
+# Prefer CMUX_SURFACE_ID as the stable per-tab key; fall back to TTY minor number
+if [ -n "$CMUX_SURFACE_ID" ]; then
+  TAB_KEY="cmux-$CMUX_SURFACE_ID"
+else
+  # Open /dev/tty as fd 3 BEFORE backgrounding — after disown, /dev/tty is inaccessible
+  # but an already-open fd survives
+  exec 3>/dev/tty 2>/dev/null || exit 0
+  TAB_KEY=$(stat -f '%Lr' /dev/tty 2>/dev/null)
+fi
 
 STDIN=$(cat)
 
@@ -30,10 +30,8 @@ except: print('')
 
 [ -z "$TRANSCRIPT" ] && exit 0
 
-# Record this session as the current owner of this TTY.
-# The background process checks this before writing the title — if a new session
-# started in the same tab while claude -p was running, we skip the write.
-[ -n "$TTY_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TTY_KEY"
+# Record this session as the current owner of this tab.
+[ -n "$TAB_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
 (
   CONTEXT=$(python3 -c "
@@ -76,17 +74,19 @@ $CONTEXT" 2>/dev/null | tr -d '"' | head -1)
 
   [ -z "$SUMMARY" ] && exit 0
 
-  # Verify we still own this TTY — a new session may have started while we were running
-  if [ -n "$TTY_KEY" ]; then
-    OWNER=$(cat "$TITLE_DIR/owner-$TTY_KEY" 2>/dev/null)
+  # Verify we still own this tab — a new session may have started while claude -p ran
+  if [ -n "$TAB_KEY" ]; then
+    OWNER=$(cat "$TITLE_DIR/owner-$TAB_KEY" 2>/dev/null)
     [ "$OWNER" != "$SESSION" ] && exit 0
   fi
 
-  # Save title for restore hook
   [ -n "$SESSION" ] && printf '%s' "$SUMMARY" > "$TITLE_DIR/$SESSION"
 
-  # Set the tab title
-  printf '\033]0;%s\007' "$SUMMARY" >&3
+  if [ -n "$CMUX_SURFACE_ID" ]; then
+    cmux rename-tab --surface "$CMUX_SURFACE_ID" "$SUMMARY"
+  else
+    printf '\033]0;%s\007' "$SUMMARY" >&3
+  fi
 ) &
 disown
 

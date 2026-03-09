@@ -5,6 +5,9 @@
 
 TITLE_DIR=/tmp/claude-tab-titles
 
+# In cmux, tab titles aren't overridden by Claude Code's OSC writes, so no restore needed
+[ -n "$CMUX_SURFACE_ID" ] && exit 0
+
 STDIN=$(cat)
 SESSION=$(echo "$STDIN" | python3 -c "
 import json, sys
