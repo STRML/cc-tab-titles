@@ -34,6 +34,9 @@ except: print('')
 [ -n "$TAB_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
 (
+  # Redirect inherited fds so Claude Code doesn't wait for this subshell to exit
+  exec > /dev/null 2>&1 < /dev/null
+
   CONTEXT=$(python3 -c "
 import json, sys
 lines = []
