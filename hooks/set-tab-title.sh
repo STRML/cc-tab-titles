@@ -158,7 +158,6 @@ PYEOF
       --tools "" \
       --disable-slash-commands \
       --strict-mcp-config \
-      --max-tokens 40 \
       --settings '{"disableAllHooks":true}' \
       < "$TITLE_DIR/$SESSION.prompt" 2>/dev/null | tr -d '"' | head -1)
 
