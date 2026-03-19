@@ -7,7 +7,8 @@ A Claude Code plugin that automatically sets your terminal tab title to an AI-ge
 
 ## How It Works
 
-- **Stop hook** — after each Claude response, generates a 4-6 word summary using Haiku and sets the tab title via OSC escape sequences. Runs in the background so it doesn't block.
+- **SessionStart hook** — claims tab ownership and sets an initial `[slug] new session` title.
+- **Stop hook** — after each Claude response, generates a short `[slug] objective` summary using Haiku and sets the tab title via OSC escape sequences. Runs in the background so it doesn't block.
 - **UserPromptSubmit hook** — restores the saved title a moment after you submit a message, preventing Claude Code from resetting the title while it's thinking.
 
 ## Installation
@@ -23,7 +24,21 @@ Restart Claude Code after installing.
 
 - `claude` CLI in your PATH (used for Haiku summarization)
 - A terminal that supports OSC 0 title sequences (Ghostty, iTerm2, Terminal.app, most others)
-- `python3` and `jq` available
+- `python3` available
+
+## Configuration
+
+Set these environment variables to customize behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CC_TAB_TITLES_MODEL` | `claude-haiku-4-5-20251001` | Model for title generation |
+| `CC_TAB_TITLES_EFFORT` | `low` | Effort level for the model |
+| `CC_TAB_TITLES_DEBUG` | (unset) | Set to `1` for debug logging to `/tmp/claude-tab-titles/debug.log` |
+
+## Platform Support
+
+Works on both macOS and Linux. Terminal tab title setting uses OSC escape sequences supported by Ghostty, iTerm2, Terminal.app, and most modern terminals.
 
 ## Keeping the Title During Thinking
 
@@ -33,7 +48,7 @@ Claude Code resets the tab title when it starts processing. The `UserPromptSubmi
 {
   "statusLine": {
     "type": "command",
-    "command": "bash \"${HOME}/.claude/plugins/cache/STRML/cc-tab-titles/1.0.0/hooks/statusline.sh\""
+    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh\""
   }
 }
 ```
