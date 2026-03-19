@@ -5,12 +5,6 @@
 # Usage in ~/.claude/settings.json:
 #   "statusLine": {
 #     "type": "command",
-#     "command": "~/.claude/plugins/cache/.../hooks/statusline.sh | your-statusline-script"
-#   }
-#
-# Or replace your statusLine entirely:
-#   "statusLine": {
-#     "type": "command",
 #     "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh\""
 #   }
 
@@ -18,11 +12,22 @@ TITLE_DIR=/tmp/claude-tab-titles
 
 INPUT=$(cat)
 
-SESSION=$(echo "$INPUT" | python3 -c "
-import json, sys
-try: print(json.load(sys.stdin).get('session_id', ''))
-except: print('')
+# Single Python pass to extract all needed values
+VALS=$(echo "$INPUT" | python3 -c "
+import json, sys, os
+try:
+    d = json.load(sys.stdin)
+    print(d.get('session_id', ''))
+    print(d.get('model', {}).get('display_name', ''))
+    print(os.path.basename(d.get('workspace', {}).get('current_dir', '')))
+except:
+    print('')
+    print('')
+    print('')
 " 2>/dev/null)
+SESSION=$(echo "$VALS" | sed -n '1p')
+MODEL=$(echo "$VALS" | sed -n '2p')
+DIR=$(echo "$VALS" | sed -n '3p')
 
 # Restore tab title if we have a saved one
 if [ -n "$SESSION" ]; then
@@ -34,16 +39,4 @@ if [ -n "$SESSION" ]; then
 fi
 
 # Emit a minimal status line (model + directory)
-MODEL=$(echo "$INPUT" | python3 -c "
-import json, sys
-try: print(json.load(sys.stdin).get('model', {}).get('display_name', ''))
-except: print('')
-" 2>/dev/null)
-
-DIR=$(echo "$INPUT" | python3 -c "
-import json, sys, os
-try: print(os.path.basename(json.load(sys.stdin).get('workspace', {}).get('current_dir', '')))
-except: print('')
-" 2>/dev/null)
-
 [ -n "$MODEL" ] && echo "[$MODEL] $DIR"
