@@ -9,11 +9,7 @@ TITLE_DIR=/tmp/claude-tab-titles
 [ -n "$CMUX_SURFACE_ID" ] && exit 0
 
 STDIN=$(cat)
-SESSION=$(echo "$STDIN" | python3 -c "
-import json, sys
-try: print(json.load(sys.stdin).get('session_id', ''))
-except: print('')
-" 2>/dev/null)
+SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 
 [ -z "$SESSION" ] && exit 0
 
