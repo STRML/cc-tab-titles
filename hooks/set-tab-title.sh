@@ -14,23 +14,19 @@ if [ -n "$CMUX_SURFACE_ID" ]; then
   TAB_KEY="cmux-$CMUX_SURFACE_ID"
 else
   exec 3>/dev/tty 2>/dev/null || { _log "SKIP: no tty"; exit 0; }
-  TAB_KEY=$(stat -f '%Lr' /dev/tty 2>/dev/null)
+  if [[ "$(uname)" == "Darwin" ]]; then
+    TAB_KEY=$(stat -f '%Lr' /dev/tty 2>/dev/null)
+  else
+    TAB_KEY=$(stat -c '%t:%T' /dev/tty 2>/dev/null)
+  fi
 fi
 _log "TAB_KEY=$TAB_KEY"
 
 STDIN=$(cat)
 
-SESSION=$(echo "$STDIN" | python3 -c "
-import json, sys
-try: print(json.load(sys.stdin).get('session_id', ''))
-except: print('')
-" 2>/dev/null)
-
-TRANSCRIPT=$(echo "$STDIN" | python3 -c "
-import json, sys
-try: print(json.load(sys.stdin).get('transcript_path', ''))
-except: print('')
-" 2>/dev/null)
+# Pure bash JSON extraction — eliminates 2 python3 spawns
+SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
+TRANSCRIPT=$(echo "$STDIN" | grep -o '"transcript_path" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 
 _log "session=$SESSION"
 [ -z "$TRANSCRIPT" ] && { _log "SKIP: no transcript"; exit 0; }
@@ -40,11 +36,11 @@ _log "session=$SESSION"
 # Single Python pass: compute user-message hash and write context to .ctx file.
 # Hash is over all user text content (stable across invocations).
 # Context guarantees the latest user message is included even after long tool-use chains.
-USER_HASH=$(python3 - << PYEOF 2>/dev/null
-import json, hashlib
+USER_HASH=$(CC_TRANSCRIPT="$TRANSCRIPT" CC_CTX_FILE="$TITLE_DIR/$SESSION.ctx" python3 - << 'PYEOF' 2>/dev/null
+import json, hashlib, os
 
-transcript = '$TRANSCRIPT'
-ctx_file = '$TITLE_DIR/$SESSION.ctx'
+transcript = os.environ['CC_TRANSCRIPT']
+ctx_file = os.environ['CC_CTX_FILE']
 lines = []
 user_texts = []
 latest_user = None
@@ -108,6 +104,9 @@ PROJECT_SLUG=$(echo "$PROJECT_NAME" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++
 [ ${#PROJECT_SLUG} -le 1 ] && PROJECT_SLUG=$(echo "$PROJECT_NAME" | cut -c1-6)
 _log "slug=$PROJECT_SLUG"
 
+MODEL="${CC_TAB_TITLES_MODEL:-claude-haiku-4-5-20251001}"
+EFFORT="${CC_TAB_TITLES_EFFORT:-low}"
+
 CURRENT_TITLE=$(cat "$TITLE_DIR/$SESSION" 2>/dev/null)
 
 (
@@ -125,11 +124,13 @@ CURRENT_TITLE=$(cat "$TITLE_DIR/$SESSION" 2>/dev/null)
 
   # Write prompt to file via Python to safely handle all special characters.
   # Never interpolate project name or transcript content into shell command strings.
-  python3 - << PYEOF 2>/dev/null
-slug = '$PROJECT_SLUG'
-current = '$CURRENT_TITLE' or 'none'
+  CC_SLUG="$PROJECT_SLUG" CC_CURRENT="${CURRENT_TITLE:-none}" \
+  CC_CTX_FILE="$TITLE_DIR/$SESSION.ctx" CC_PROMPT_FILE="$TITLE_DIR/$SESSION.prompt" \
+  python3 - << 'PYEOF' 2>/dev/null
 import os
-ctx = open('$TITLE_DIR/$SESSION.ctx').read()
+slug = os.environ['CC_SLUG']
+current = os.environ['CC_CURRENT']
+ctx = open(os.environ['CC_CTX_FILE']).read()
 prompt = (
     f"You set terminal tab titles. Project slug (use exactly): [{slug}]\n"
     f"Current title: {current}\n\n"
@@ -143,7 +144,7 @@ prompt = (
     f"- No trailing punctuation, no quotes\n"
     f"- Reply with ONLY the title or the word UNCHANGED"
 )
-open('$TITLE_DIR/$SESSION.prompt', 'w').write(prompt)
+open(os.environ['CC_PROMPT_FILE'], 'w').write(prompt)
 PYEOF
 
   [ -f "$TITLE_DIR/$SESSION.prompt" ] || { _log "SKIP: prompt write failed"; exit 0; }
@@ -152,8 +153,8 @@ PYEOF
 
   SUMMARY=$(CLAUDECODE="" CLAUDE_CODE_ENTRYPOINT="" CLAUDE_CODE_SIMPLE=1 \
     claude -p \
-      --model claude-haiku-4-5-20251001 \
-      --effort low \
+      --model "$MODEL" \
+      --effort "$EFFORT" \
       --no-session-persistence \
       --tools "" \
       --disable-slash-commands \
