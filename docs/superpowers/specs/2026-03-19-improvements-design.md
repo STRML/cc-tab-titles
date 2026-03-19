@@ -32,6 +32,8 @@ Note: TAB_KEY format differs across platforms (decimal on macOS, hex on Linux) �
 
 All Python snippets receive data via environment variables instead of `'$VAR'` shell interpolation into Python string literals. This prevents breakage/injection from session IDs or paths containing quotes.
 
+**This is a live bug, not just hardening.** `$CURRENT_TITLE` is Haiku-generated output — if Haiku returns a title containing a single quote (e.g. `[ctt] fix user's bug`), the Python literal `'fix user's bug'` is a syntax error and no title is written. Similarly, `$TRANSCRIPT` and file paths containing quotes would break the hash+context Python block.
+
 After item 4 removes Python from `session-start.sh` and `restore-title.sh`, this applies only to scripts that still use Python:
 - `set-tab-title.sh` — both Python blocks (hash+context extractor, and prompt writer in background subshell): transcript path, title dir, session ID, project slug, current title
 - `statusline.sh` — the consolidated single-pass Python (implemented together with item 7)
@@ -51,7 +53,7 @@ session = os.environ['SESSION_ID']
   ```bash
   SESSION=$(grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
   ```
-  (Pattern allows optional whitespace around `:` to handle both compact and formatted JSON.)
+  (Pattern allows optional whitespace around `:` to handle both compact and formatted JSON. Assumes hook payloads are single-line JSON objects — consistent with observed Claude Code behavior.)
 - `restore-title.sh`: Same pure bash extraction.
 - `statusline.sh`: Collapse 3 separate `python3` calls into 1 (see item 7). Items 3 and 7 are implemented together for this file.
 
@@ -65,7 +67,13 @@ Add to `session-start.sh` (runs once per session start — good trigger point):
 find "$TITLE_DIR" -type f -not -name 'owner-*' -mtime +1 -delete 2>/dev/null
 ```
 
-Cleans `.ctx`, `.prompt`, `.uhash`, and title files older than 24 hours. Excludes `owner-*` files to avoid garbage-collecting ownership guards for long-running sessions.
+Cleans `.ctx`, `.prompt`, `.uhash`, and title files older than 24 hours. Excludes `owner-*` from the 24h window.
+
+Additionally, clean `owner-*` files older than 7 days (these accumulate on macOS which doesn't clear `/tmp` on reboot):
+
+```bash
+find "$TITLE_DIR" -type f -name 'owner-*' -mtime +7 -delete 2>/dev/null
+```
 
 ### 6. Configurable model and effort
 
@@ -76,7 +84,7 @@ MODEL="${CC_TAB_TITLES_MODEL:-claude-haiku-4-5-20251001}"
 EFFORT="${CC_TAB_TITLES_EFFORT:-low}"
 ```
 
-Used in the `claude -p` invocation.
+Used in the `claude -p` invocation: replace `--model claude-haiku-4-5-20251001` with `--model "$MODEL"` and `--effort low` with `--effort "$EFFORT"`.
 
 ### 7. Statusline.sh — single Python pass (consolidates with items 3 & 4 for this file)
 
@@ -95,7 +103,7 @@ MODEL=$(echo "$VALS" | sed -n '2p')
 DIR=$(echo "$VALS" | sed -n '3p')
 ```
 
-Note: `statusline.sh` runs as a statusLine command, not a hook. The payload schema is assumed to match hook payloads (session_id, model, workspace). The `.get()` calls handle missing keys gracefully.
+Note: `statusline.sh` runs as a statusLine command, not a hook. The payload schema is assumed to match hook payloads (session_id, model, workspace). The entire Python block must be wrapped in `try/except` to prevent all-or-nothing failures — if the payload shape differs, emit empty strings rather than crashing. The `.get()` calls handle missing keys; the `try/except` handles fundamentally different payloads.
 
 ### 8. Initial title on SessionStart
 
@@ -148,7 +156,7 @@ No shared script file — duplication is preferable to the complexity of sourcin
 | File | Changes |
 |------|---------|
 | `hooks/set-tab-title.sh` | Env vars for Python (#3), Linux stat (#2), configurable model/effort (#6) |
-| `hooks/session-start.sh` | Pure bash JSON (#4), Linux stat (#2), temp cleanup (#5), initial title (#8), slug (#11) |
+| `hooks/session-start.sh` | Pure bash JSON (#4), Linux stat (#2), temp cleanup (#5), initial title (#8), slug |
 | `hooks/restore-title.sh` | Pure bash JSON extraction (#4) |
 | `hooks/statusline.sh` | Single Python pass with env vars (#3, #4, #7) |
 | `.claude-plugin/plugin.json` | Version 1.1.0 (#9) |
