@@ -13,6 +13,8 @@ SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'
 
 [ -z "$SESSION" ] && exit 0
 
+[ -f "$TITLE_DIR/$SESSION.pinned" ] && exit 0
+
 TITLE_FILE="$TITLE_DIR/$SESSION"
 [ -f "$TITLE_FILE" ] || exit 0
 TITLE=$(cat "$TITLE_FILE")

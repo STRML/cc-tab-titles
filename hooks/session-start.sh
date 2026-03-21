@@ -29,6 +29,9 @@ fi
 
 [ -n "$TAB_KEY" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
+# Clear pinned state from previous session in this tab
+rm -f "$TITLE_DIR/$SESSION.pinned"
+
 # Compute project slug and set initial title
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
 PROJECT_NAME=$(basename "$PROJECT_ROOT")

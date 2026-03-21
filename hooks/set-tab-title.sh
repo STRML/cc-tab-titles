@@ -109,6 +109,9 @@ EFFORT="${CC_TAB_TITLES_EFFORT:-low}"
 
 CURRENT_TITLE=$(cat "$TITLE_DIR/$SESSION" 2>/dev/null)
 
+# Skip if user has pinned this tab (e.g. via /rename)
+[ -f "$TITLE_DIR/$SESSION.pinned" ] && { _log "SKIP: user-pinned"; exit 0; }
+
 (
   # Redirect inherited fds so Claude Code doesn't wait for this subshell to exit
   if [ -n "$CC_TAB_TITLES_DEBUG" ]; then
@@ -175,7 +178,50 @@ PYEOF
   SUMMARY=$(echo "$SUMMARY" | xargs | cut -c1-30)
   [ -z "$SUMMARY" ] && { _log "SKIP: empty summary"; exit 0; }
 
+  # Validate title format: must start with [slug] (rejects error messages, auth failures, etc.)
+  if ! echo "$SUMMARY" | grep -qE '^\[.+\] '; then
+    _log "SKIP: bad format='$SUMMARY'"
+    exit 0
+  fi
+
   _log "summary='$SUMMARY'"
+
+  # Detect user-renamed tab: if the actual tab title differs from our
+  # last-written title, the user renamed it (e.g. via /rename) — pin and skip.
+  # Works in cmux (via identify + list-pane-surfaces) and tmux (via display-message).
+  if [ -n "$CURRENT_TITLE" ]; then
+    ACTUAL_TITLE=""
+    if [ -n "$CMUX_SURFACE_ID" ]; then
+      ACTUAL_TITLE=$(CC_CURRENT_TITLE="$CURRENT_TITLE" python3 - << 'PYEOF' 2>/dev/null
+import subprocess, json, sys, os
+try:
+    ident = json.loads(subprocess.check_output(['cmux', 'identify'], stderr=subprocess.DEVNULL))
+    pane = ident['caller']['pane_ref']
+    surface = ident['caller']['surface_ref']
+    listing = subprocess.check_output(
+        ['cmux', 'list-pane-surfaces', '--pane', pane],
+        stderr=subprocess.DEVNULL
+    ).decode()
+    for line in listing.splitlines():
+        if surface in line:
+            title = line.split(surface, 1)[1].strip()
+            if title.endswith('[selected]'):
+                title = title[:-len('[selected]')].strip()
+            print(title)
+            break
+except:
+    pass
+PYEOF
+)
+    elif [ -n "$TMUX" ]; then
+      ACTUAL_TITLE=$(tmux display-message -p -t "${TMUX_PANE}" '#{pane_title}' 2>/dev/null)
+    fi
+    if [ -n "$ACTUAL_TITLE" ] && [ "$ACTUAL_TITLE" != "$CURRENT_TITLE" ]; then
+      _log "SKIP: user renamed (saved='$CURRENT_TITLE' actual='$ACTUAL_TITLE')"
+      touch "$TITLE_DIR/$SESSION.pinned"
+      exit 0
+    fi
+  fi
 
   # Verify ownership (another session may have started in this tab while we ran)
   if [ -n "$TAB_KEY" ]; then
