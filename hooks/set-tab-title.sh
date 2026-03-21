@@ -154,7 +154,7 @@ PYEOF
 
   _log "calling claude -p"
 
-  SUMMARY=$(CLAUDECODE="" CLAUDE_CODE_ENTRYPOINT="" CLAUDE_CODE_SIMPLE=1 \
+  SUMMARY=$(CLAUDECODE="" CLAUDE_CODE_ENTRYPOINT="" \
     claude -p \
       --model "$MODEL" \
       --effort "$EFFORT" \
@@ -216,6 +216,10 @@ PYEOF
     elif [ -n "$TMUX" ]; then
       ACTUAL_TITLE=$(tmux display-message -p -t "${TMUX_PANE}" '#{pane_title}' 2>/dev/null)
     fi
+    # Ignore Claude Code's own title changes (spinner prefixes, default title)
+    case "$ACTUAL_TITLE" in
+      *"Claude Code"*|"") ACTUAL_TITLE="" ;;
+    esac
     if [ -n "$ACTUAL_TITLE" ] && [ "$ACTUAL_TITLE" != "$CURRENT_TITLE" ]; then
       _log "SKIP: user renamed (saved='$CURRENT_TITLE' actual='$ACTUAL_TITLE')"
       touch "$TITLE_DIR/$SESSION.pinned"
