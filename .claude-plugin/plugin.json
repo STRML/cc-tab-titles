@@ -1,6 +1,6 @@
 {
   "name": "cc-tab-titles",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Automatically sets terminal tab titles to an AI-generated summary of your Claude Code session",
   "author": {
     "name": "Samuel Reed",
