@@ -28,8 +28,9 @@ STDIN=$(cat)
 SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 TRANSCRIPT=$(echo "$STDIN" | grep -o '"transcript_path" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 
-_log "session=$SESSION"
-[ -z "$TRANSCRIPT" ] && { _log "SKIP: no transcript"; exit 0; }
+_log "session=$SESSION transcript=$TRANSCRIPT"
+[ -z "$TRANSCRIPT" ] && { _log "SKIP: no transcript_path in payload"; exit 0; }
+[ ! -f "$TRANSCRIPT" ] && { _log "SKIP: transcript file missing"; exit 0; }
 
 [ -n "$TAB_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
@@ -189,7 +190,9 @@ PYEOF
   # Detect user-renamed tab: if the actual tab title differs from our
   # last-written title, the user renamed it (e.g. via /rename) — pin and skip.
   # Works in cmux (via identify + list-pane-surfaces) and tmux (via display-message).
-  if [ -n "$CURRENT_TITLE" ]; then
+  # Skip rename detection if we haven't set a real title yet — Claude Code
+  # changes the tab title itself (CWD, spinners) which would false-pin.
+  if [ -n "$CURRENT_TITLE" ] && ! echo "$CURRENT_TITLE" | grep -q "new session"; then
     ACTUAL_TITLE=""
     if [ -n "$CMUX_SURFACE_ID" ]; then
       ACTUAL_TITLE=$(CC_CURRENT_TITLE="$CURRENT_TITLE" python3 - << 'PYEOF' 2>/dev/null
