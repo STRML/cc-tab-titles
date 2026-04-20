@@ -97,27 +97,12 @@ fi
 printf '%s' "$USER_HASH" > "$TITLE_DIR/$SESSION.uhash"
 
 # Compute deterministic project slug from git root name.
-# CamelCase: 2 chars per word (max 6 total) for multi-word names;
-# first 5 chars title-cased for single-word names. Aims for 4-5 chars
-# minimum so slugs stay readable (e.g. cc-tab-titles -> CcTaTi, not ctt).
 # Note: bare git rev-parse (no -C flag) to avoid sandbox auto-allow issues.
+# shellcheck source=lib/project-slug.sh
+. "$(dirname "$0")/lib/project-slug.sh"
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
 PROJECT_NAME=$(basename "$PROJECT_ROOT")
-PROJECT_SLUG=$(echo "$PROJECT_NAME" | awk -F'[-_]' '{
-  if (NF <= 1) {
-    s = substr($1, 1, 5)
-    printf "%s%s", toupper(substr(s,1,1)), substr(s,2)
-  } else {
-    out = ""
-    for (i=1; i<=NF; i++) {
-      if ($i == "") continue
-      part = substr($i, 1, 2)
-      out = out toupper(substr(part,1,1)) substr(part,2)
-    }
-    printf "%s", substr(out, 1, 6)
-  }
-}')
-[ -z "$PROJECT_SLUG" ] && PROJECT_SLUG=$(echo "$PROJECT_NAME" | cut -c1-6)
+PROJECT_SLUG=$(compute_project_slug "$PROJECT_NAME")
 _log "slug=$PROJECT_SLUG"
 
 MODEL="${CC_TAB_TITLES_MODEL:-claude-haiku-4-5-20251001}"

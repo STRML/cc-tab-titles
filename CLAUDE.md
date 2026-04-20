@@ -11,9 +11,16 @@ hooks/
   session-start.sh    # SessionStart hook: claims tab ownership for new session
   restore-title.sh    # UserPromptSubmit hook: re-applies saved title after Claude resets it
   statusline.sh       # Optional statusLine command to keep title persistent
+  lib/
+    project-slug.sh   # compute_project_slug(): CamelCase 2-chars-per-word slug
+tests/
+  run-tests.sh        # Runs every test-*.sh
+  test-project-slug.sh
+  test-session-start.sh
+  lib/assert.sh       # Tiny test helpers
 ```
 
-No build system, no package manager, no tests — pure bash scripts.
+No build system or package manager — pure bash. Run `bash tests/run-tests.sh`.
 
 ## Key Architecture Decisions
 
@@ -25,6 +32,7 @@ No build system, no package manager, no tests — pure bash scripts.
 
 ## Development Notes
 
+- Run the test suite with `bash tests/run-tests.sh` before committing
 - Test hooks manually by running the scripts with a mock JSON payload piped to stdin
 - Enable debug logging with `CC_TAB_TITLES_DEBUG=1`; logs go to `/tmp/claude-tab-titles/debug.log`
 - The plugin is installed via `/plugin install cc-tab-titles@STRML`
