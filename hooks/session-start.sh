@@ -32,14 +32,11 @@ fi
 # Clear pinned state from previous session in this tab
 rm -f "$TITLE_DIR/$SESSION.pinned"
 
-# Compute project slug and set initial title
+# Set initial title to the project folder name
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
 PROJECT_NAME=$(basename "$PROJECT_ROOT")
-PROJECT_SLUG=$(echo "$PROJECT_NAME" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) printf substr($i,1,1)}' | cut -c1-6)
-[ ${#PROJECT_SLUG} -le 1 ] && PROJECT_SLUG=$(echo "$PROJECT_NAME" | cut -c1-6)
 
-TITLE="[$PROJECT_SLUG] new session"
-TITLE=$(echo "$TITLE" | cut -c1-30)
+TITLE=$(echo "$PROJECT_NAME" | cut -c1-30)
 printf '%s' "$TITLE" > "$TITLE_DIR/$SESSION"
 
 if [ -n "$CMUX_SURFACE_ID" ]; then
