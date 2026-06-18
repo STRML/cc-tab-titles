@@ -11,6 +11,10 @@ A Claude Code plugin that automatically sets your terminal tab title to an AI-ge
 - **Stop hook** — after each Claude response, generates a short `[slug] objective` summary using Haiku and sets the tab title via OSC escape sequences. Runs in the background so it doesn't block.
 - **UserPromptSubmit hook** — restores the saved title a moment after you submit a message, preventing Claude Code from resetting the title while it's thinking.
 
+## Pinning a Title with `/rename`
+
+Run Claude Code's built-in `/rename <name>` and the tab locks to that exact name — automatic Haiku titles stop overriding it. The tab stays pinned until you `/rename` to a different value. Use this whenever you want a stable, hand-picked label for a tab.
+
 ## Installation
 
 ```bash

@@ -10,8 +10,22 @@ TITLE_DIR=/tmp/claude-tab-titles
 
 STDIN=$(cat)
 SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
+TRANSCRIPT=$(echo "$STDIN" | grep -o '"transcript_path" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 
 [ -z "$SESSION" ] && exit 0
+
+# /rename override: pick up an explicit session title immediately, so the tab
+# reflects it the moment the user submits their next prompt (rather than waiting
+# for the next assistant turn's Stop hook).
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+  . "$(dirname "$0")/lib/session-title.sh"
+  CUSTOM_TITLE=$(last_custom_title "$TRANSCRIPT")
+  if [ -n "$CUSTOM_TITLE" ]; then
+    RENAME_TITLE=$(printf '%s' "$CUSTOM_TITLE" | cut -c1-30)
+    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION"
+    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION.rename"
+  fi
+fi
 
 [ -f "$TITLE_DIR/$SESSION.pinned" ] && exit 0
 

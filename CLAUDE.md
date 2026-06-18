@@ -13,10 +13,12 @@ hooks/
   statusline.sh       # Optional statusLine command to keep title persistent
   lib/
     project-slug.sh   # compute_project_slug(): CamelCase 2-chars-per-word slug
+    session-title.sh  # last_custom_title(): reads the user's /rename title from the transcript
 tests/
   run-tests.sh        # Runs every test-*.sh
   test-project-slug.sh
   test-session-start.sh
+  test-session-title.sh
   lib/assert.sh       # Tiny test helpers
 ```
 
@@ -29,6 +31,7 @@ No build system or package manager — pure bash. Run `bash tests/run-tests.sh`.
 - **TTY detection**: Prefers `$CMUX_SURFACE_ID` (cmux multiplexer); falls back to `stat -f '%Lr' /dev/tty`
 - **Title persistence**: Saved to `/tmp/claude-tab-titles/<session_id>`; restored on UserPromptSubmit with 0.5s delay
 - **Haiku model**: `claude-haiku-4-5-20251001` with `--effort low` and all hooks/sessions/tools disabled for speed
+- **`/rename` override**: `/rename <name>` writes `{"type":"custom-title","customTitle":...}` to the transcript (it fires no hook). The Stop and UserPromptSubmit hooks read that, pin the tab to the exact name (`<session>.rename` marker), and suppress Haiku until the user renames to a different value. Auto-generated `"ai-title"` entries are ignored — only explicit renames win.
 
 ## Development Notes
 

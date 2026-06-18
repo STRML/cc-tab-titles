@@ -34,6 +34,31 @@ _log "session=$SESSION transcript=$TRANSCRIPT"
 
 [ -n "$TAB_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
+# /rename override: if the user set an explicit session title via `/rename`,
+# it wins outright. Apply it to the tab and suppress Haiku entirely until the
+# user renames to a different value. `/rename` fires no hook of its own, so we
+# detect it here (the Stop hook reads the transcript every turn anyway).
+# shellcheck source=lib/session-title.sh
+. "$(dirname "$0")/lib/session-title.sh"
+CUSTOM_TITLE=$(last_custom_title "$TRANSCRIPT")
+if [ -n "$CUSTOM_TITLE" ]; then
+  RENAME_TITLE=$(printf '%s' "$CUSTOM_TITLE" | cut -c1-30)
+  STORED_RENAME=$(cat "$TITLE_DIR/$SESSION.rename" 2>/dev/null)
+  if [ "$RENAME_TITLE" != "$STORED_RENAME" ]; then
+    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION"
+    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION.rename"
+    if [ -n "$CMUX_SURFACE_ID" ]; then
+      cmux rename-tab --surface "$CMUX_SURFACE_ID" "$RENAME_TITLE" 2>/dev/null
+    else
+      printf '\033]0;%s\007' "$RENAME_TITLE" >&3
+    fi
+    _log "RENAME applied: '$RENAME_TITLE'"
+  else
+    _log "SKIP: rename unchanged"
+  fi
+  exit 0
+fi
+
 # Single Python pass: compute user-message hash and write context to .ctx file.
 # Hash is over all user text content (stable across invocations).
 # Context guarantees the latest user message is included even after long tool-use chains.
