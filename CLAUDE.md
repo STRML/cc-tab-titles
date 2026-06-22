@@ -31,7 +31,9 @@ No build system or package manager — pure bash. Run `bash tests/run-tests.sh`.
 - **TTY detection**: Prefers `$CMUX_SURFACE_ID` (cmux multiplexer); falls back to `stat -f '%Lr' /dev/tty`
 - **Title persistence**: Saved to `/tmp/claude-tab-titles/<session_id>`; restored on UserPromptSubmit with 0.5s delay
 - **Haiku model**: `claude-haiku-4-5-20251001` with `--effort low` and all hooks/sessions/tools disabled for speed
-- **`/rename` override**: `/rename <name>` writes `{"type":"custom-title","customTitle":...}` to the transcript (it fires no hook). The Stop and UserPromptSubmit hooks read that, pin the tab to the exact name (`<session>.rename` marker), and suppress Haiku until the user renames to a different value. Auto-generated `"ai-title"` entries are ignored — only explicit renames win.
+- **`/rename` override**: `/rename <name>` writes `{"type":"custom-title","customTitle":...}` to the transcript (it fires no hook). The hooks read that, suppress Haiku, and record a `<session>.rename` marker until the user renames to a different value. Auto-generated `"ai-title"` entries are ignored — only explicit renames win. Behavior differs by terminal:
+  - **cmux** already displays the renamed session natively, so the hooks just clear cc-tab-titles' own override (`cmux tab-action --action clear-name`) and defer to cmux — they do not set a competing title. session-start.sh does the same when resuming an already-named session, avoiding a project-name flash.
+  - **Other terminals** have no native session name, so the rename value is written to the tab title via OSC.
 
 ## Development Notes
 

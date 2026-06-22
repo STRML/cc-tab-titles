@@ -34,27 +34,37 @@ _log "session=$SESSION transcript=$TRANSCRIPT"
 
 [ -n "$TAB_KEY" ] && [ -n "$SESSION" ] && printf '%s' "$SESSION" > "$TITLE_DIR/owner-$TAB_KEY"
 
-# /rename override: if the user set an explicit session title via `/rename`,
-# it wins outright. Apply it to the tab and suppress Haiku entirely until the
-# user renames to a different value. `/rename` fires no hook of its own, so we
-# detect it here (the Stop hook reads the transcript every turn anyway).
+# /rename override: when the user explicitly names the session via `/rename`,
+# back off and let that name win, suppressing Haiku until they rename again.
+# `/rename` fires no hook of its own, so we detect it from the transcript here
+# (the Stop hook reads it every turn anyway).
+#   - cmux: cmux already shows the renamed session natively, so we just clear
+#     any title cc-tab-titles set (`tab-action clear-name`) and let cmux own it.
+#   - other terminals: there is no native session name to reveal, so we set the
+#     tab title to the rename value via OSC.
 # shellcheck source=lib/session-title.sh
 . "$(dirname "$0")/lib/session-title.sh"
 CUSTOM_TITLE=$(last_custom_title "$TRANSCRIPT")
 if [ -n "$CUSTOM_TITLE" ]; then
-  RENAME_TITLE=$(printf '%s' "$CUSTOM_TITLE" | cut -c1-30)
   STORED_RENAME=$(cat "$TITLE_DIR/$SESSION.rename" 2>/dev/null)
-  if [ "$RENAME_TITLE" != "$STORED_RENAME" ]; then
-    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION"
-    printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION.rename"
-    if [ -n "$CMUX_SURFACE_ID" ]; then
-      cmux rename-tab --surface "$CMUX_SURFACE_ID" "$RENAME_TITLE" 2>/dev/null
+  if [ -n "$CMUX_SURFACE_ID" ]; then
+    if [ "$CUSTOM_TITLE" != "$STORED_RENAME" ]; then
+      cmux tab-action --surface "$CMUX_SURFACE_ID" --action clear-name 2>/dev/null
+      printf '%s' "$CUSTOM_TITLE" > "$TITLE_DIR/$SESSION.rename"
+      _log "RENAME (cmux): cleared override, deferring to native name '$CUSTOM_TITLE'"
     else
-      printf '\033]0;%s\007' "$RENAME_TITLE" >&3
+      _log "SKIP: rename unchanged (cmux)"
     fi
-    _log "RENAME applied: '$RENAME_TITLE'"
   else
-    _log "SKIP: rename unchanged"
+    RENAME_TITLE=$(printf '%s' "$CUSTOM_TITLE" | cut -c1-30)
+    if [ "$RENAME_TITLE" != "$STORED_RENAME" ]; then
+      printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION"
+      printf '%s' "$RENAME_TITLE" > "$TITLE_DIR/$SESSION.rename"
+      printf '\033]0;%s\007' "$RENAME_TITLE" >&3
+      _log "RENAME applied: '$RENAME_TITLE'"
+    else
+      _log "SKIP: rename unchanged"
+    fi
   fi
   exit 0
 fi

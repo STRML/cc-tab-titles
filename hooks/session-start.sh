@@ -14,6 +14,7 @@ STDIN=$(cat)
 
 # Pure bash JSON extraction (no python3 dependency)
 SESSION=$(echo "$STDIN" | grep -o '"session_id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
+TRANSCRIPT=$(echo "$STDIN" | grep -o '"transcript_path" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
 [ -z "$SESSION" ] && exit 0
 
 if [ -n "$CMUX_SURFACE_ID" ]; then
@@ -31,6 +32,20 @@ fi
 
 # Clear pinned state from previous session in this tab
 rm -f "$TITLE_DIR/$SESSION.pinned"
+
+# Resuming a session the user already named with `/rename`? In cmux the renamed
+# session is shown natively, so defer to it (clear any override) instead of
+# flashing the project name until the first Stop hook. The Stop hook keeps it
+# suppressed for the rest of the session via the same .rename marker.
+if [ -n "$CMUX_SURFACE_ID" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+  . "$(dirname "$0")/lib/session-title.sh"
+  CUSTOM_TITLE=$(last_custom_title "$TRANSCRIPT")
+  if [ -n "$CUSTOM_TITLE" ]; then
+    cmux tab-action --surface "$CMUX_SURFACE_ID" --action clear-name 2>/dev/null
+    printf '%s' "$CUSTOM_TITLE" > "$TITLE_DIR/$SESSION.rename"
+    exit 0
+  fi
+fi
 
 # Set initial title to the project folder name
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")

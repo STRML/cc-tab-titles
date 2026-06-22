@@ -13,7 +13,10 @@ A Claude Code plugin that automatically sets your terminal tab title to an AI-ge
 
 ## Pinning a Title with `/rename`
 
-Run Claude Code's built-in `/rename <name>` and the tab locks to that exact name — automatic Haiku titles stop overriding it. The tab stays pinned until you `/rename` to a different value. Use this whenever you want a stable, hand-picked label for a tab.
+Run Claude Code's built-in `/rename <name>` and automatic Haiku titles stop overriding the tab until you `/rename` to a different value. Use this whenever you want a stable, hand-picked label.
+
+- In **cmux**, the renamed session is shown natively, so the plugin simply gets out of the way — it clears its own tab override and lets cmux display the name.
+- In **other terminals**, the rename value is applied to the tab title directly.
 
 ## Installation
 
